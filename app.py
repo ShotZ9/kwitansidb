@@ -9,7 +9,7 @@ import re
 import os
 
 # Konfigurasi jika di Windows
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'  # Ganti sesuai path
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'  # Ganti sesuai path
 
 # === Fungsi bantu ===
 def load_image(image_file):
