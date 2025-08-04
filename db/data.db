@@ -1,0 +1,25 @@
+import sqlite3
+
+conn = sqlite3.connect("db/data.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS receipts (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    amount TEXT,
+    date TEXT
+)
+""")
+
+data = [
+    ("PT. Agroindo Cipta Sejahtera", "1.250.000", "2025-07-12"),
+    ("CV. Maju Jaya Abadi", "500.000", "2025-06-30"),
+    ("Yayasan Anak Bangsa", "3.750.000", "2025-08-01"),
+    ("PT. Nusantara Makmur", "1.250.000", "2025-07-15"),
+    ("Toko Sumber Rejeki", "280.000", "2025-05-10")
+]
+
+cursor.executemany("INSERT INTO receipts (name, amount, date) VALUES (?, ?, ?)", data)
+conn.commit()
+conn.close()
