@@ -1,6 +1,6 @@
 streamlit
-pillow
+opencv-python-headless
 pytesseract
-opencv-python
-sqlalchemy
-pdf2image
+Pillow
+numpy
+sqlite3
