@@ -3,4 +3,3 @@ opencv-python-headless
 pytesseract
 Pillow
 numpy
-sqlite3
