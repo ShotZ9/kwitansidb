@@ -52,7 +52,7 @@ uploaded_file = st.file_uploader("Unggah gambar kwitansi (.jpg, .png)", type=["j
 
 if uploaded_file:
     img = load_image(uploaded_file)
-    st.image(img, caption="Gambar Kwitansi", use_column_width=True)
+    st.image(img, caption="Gambar Kwitansi", use_container_width=True)
 
     with st.spinner("🔍 Mengekstrak teks..."):
         text_result = extract_text(img)
