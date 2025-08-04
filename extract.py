@@ -30,9 +30,11 @@ def extract_info(file):
     name = name_match.group(2).strip() if name_match else "Tidak ditemukan"
 
     # Ekstrak logo (asumsi logo di kiri atas)
-    open_cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    h, w, _ = open_cv_image.shape
-    logo_crop = open_cv_image[0:int(h * 0.2), 0:int(w * 0.2)]  # kiri atas
-    logo_pil = Image.fromarray(cv2.cvtColor(logo_crop, cv2.COLOR_BGR2RGB))
+    # open_cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    # h, w, _ = open_cv_image.shape
+    # logo_crop = open_cv_image[0:int(h * 0.2), 0:int(w * 0.2)]  # kiri atas
+    # logo_pil = Image.fromarray(cv2.cvtColor(logo_crop, cv2.COLOR_BGR2RGB))
+    w, h = image.size
+    logo_crop = image.crop((0, 0, int(w * 0.2), int(h * 0.2)))
 
     return logo_pil, name, amount
