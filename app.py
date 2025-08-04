@@ -17,14 +17,19 @@ def load_image(image_file):
     return img
 
 def extract_text(image: Image.Image):
-    img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    return pytesseract.image_to_string(img_cv)
+    # Convert to grayscale + threshold
+    img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
+    _, thresh = cv2.threshold(img_cv, 150, 255, cv2.THRESH_BINARY_INV)
+    # Optional: Denoise or dilate if needed
+    return pytesseract.image_to_string(thresh)
 
 def extract_amount(text: str):
-    match = re.findall(r'Rp[\s\.]*([\d\.]+)', text, re.IGNORECASE)
+    # Cari pola jumlah uang setelah Rp
+    match = re.search(r'Rp[\s\.:]*([\d\.,]+)', text, re.IGNORECASE)
     if match:
+        raw = match.group(1).replace(".", "").replace(",", ".")
         try:
-            return float(match[0].replace(".", "").replace(",", "."))
+            return float(raw)
         except:
             return None
     return None
