@@ -17,7 +17,7 @@ def extract_text(image: Image.Image):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
 
-    st.image(thresh, caption="🔍 Gambar Threshold (OCR Input)", use_column_width=True, channels="GRAY")
+    st.image(thresh, caption="🔍 Gambar Threshold (OCR Input)", use_container_width=True, channels="GRAY")
 
     return pytesseract.image_to_string(thresh)
 
@@ -29,7 +29,7 @@ def extract_amount_from_image(image: Image.Image):
     gray = cv2.cvtColor(cropped, cv2.COLOR_RGB2GRAY)
     _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
 
-    st.image(thresh, caption="🧾 Area Jumlah Uang (Cropped)", use_column_width=True, channels="GRAY")
+    st.image(thresh, caption="🧾 Area Jumlah Uang (Cropped)", use_container_width=True, channels="GRAY")
 
     text = pytesseract.image_to_string(thresh)
     match = re.search(r'[\d\.,]+', text)
