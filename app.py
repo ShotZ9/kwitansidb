@@ -64,7 +64,7 @@ def match_to_database(name: str, amount: float, db_path="receipts.db"):
 st.set_page_config(page_title="Ekstraksi Kwitansi", layout="centered")
 st.title("📤 Upload Kwitansi & Ekstrak Informasi")
 
-uploaded_file = st.file_uploader("Unggah gambar kwitansi (.jpg, .png)", type=["jpg", "png", "jpeg"])
+uploaded_file = st.file_uploader("Unggah gambar kwitansi (.jpg, .png, .pdf)", type=["jpg", "png", "jpeg", "pdf"])
 
 if uploaded_file:
     img = load_image(uploaded_file)
