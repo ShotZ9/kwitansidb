@@ -13,27 +13,23 @@ def load_image(image_file):
     return img
 
 def extract_text(image: Image.Image):
-    # Preprocessing: grayscale dan threshold
     img = np.array(image)
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
 
-    # Tampilkan gambar threshold di Streamlit
-    st.image(thresh, caption="🔍 Gambar setelah Thresholding (OCR Input)", use_container_width=True, channels="GRAY")
+    st.image(thresh, caption="🔍 Gambar Threshold (OCR Input)", use_column_width=True, channels="GRAY")
 
     return pytesseract.image_to_string(thresh)
 
 def extract_amount_from_image(image: Image.Image):
-    # Crop area kanan bawah (biasanya tempat jumlah uang)
     img = np.array(image)
     h, w = img.shape[:2]
     cropped = img[int(h*0.65):h, int(w*0.5):w]
 
-    # Preprocessing khusus cropped area
     gray = cv2.cvtColor(cropped, cv2.COLOR_RGB2GRAY)
     _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
 
-    st.image(thresh, caption="🧾 Area Jumlah Uang (Cropped)", use_container_width=True, channels="GRAY")
+    st.image(thresh, caption="🧾 Area Jumlah Uang (Cropped)", use_column_width=True, channels="GRAY")
 
     text = pytesseract.image_to_string(thresh)
     match = re.search(r'[\d\.,]+', text)
@@ -60,11 +56,31 @@ def match_to_database(name: str, amount: float, db_path="receipts.db"):
     conn.close()
     return result
 
+def detect_logo_name(image: Image.Image, template_dir="assets/logo", threshold=0.8):
+    img_rgb = np.array(image.convert("RGB"))
+    img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
+
+    for filename in os.listdir(template_dir):
+        if not filename.lower().endswith((".png", ".jpg", ".jpeg")):
+            continue
+
+        template_path = os.path.join(template_dir, filename)
+        template = cv2.imread(template_path, 0)
+        if template is None:
+            continue
+
+        res = cv2.matchTemplate(img_gray, template, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, _ = cv2.minMaxLoc(res)
+
+        if max_val >= threshold:
+            return os.path.splitext(filename)[0]
+    return None
+
 # === Streamlit UI ===
 st.set_page_config(page_title="Ekstraksi Kwitansi", layout="centered")
 st.title("📤 Upload Kwitansi & Ekstrak Informasi")
 
-uploaded_file = st.file_uploader("Unggah gambar kwitansi (.jpg, .png, .pdf)", type=["jpg", "png", "jpeg", "pdf"])
+uploaded_file = st.file_uploader("Unggah gambar kwitansi (.jpg, .png)", type=["jpg", "png", "jpeg"])
 
 if uploaded_file:
     img = load_image(uploaded_file)
@@ -74,19 +90,31 @@ if uploaded_file:
         text_result = extract_text(img)
         extracted_name = extract_name(text_result)
         extracted_amount = extract_amount_from_image(img)
+        detected_logo = detect_logo_name(img)
 
     st.subheader("📑 Hasil Ekstraksi")
     st.text_area("📄 Hasil OCR (seluruh gambar):", value=text_result, height=150)
+
     st.write("**🏷️ Nama yang Dideteksi:**", extracted_name or "❌ Tidak ditemukan")
     st.write("**💰 Jumlah Uang:**", f"Rp {extracted_amount:,.0f}" if extracted_amount else "❌ Tidak ditemukan")
+    if detected_logo:
+        st.write("**🏢 Logo Terdeteksi:**", detected_logo)
 
-    if extracted_name and extracted_amount:
-        st.subheader("🔗 Pencocokan Database")
-        results = match_to_database(extracted_name, extracted_amount)
+    # Manual override
+    st.markdown("### ✏️ Koreksi Manual (Opsional)")
+    manual_name = st.text_input("Nama pengirim (jika OCR salah):", value=extracted_name or "")
+    manual_amount = st.number_input("Jumlah uang (jika OCR salah):", value=extracted_amount or 0.0, step=1000.0)
 
-        if results:
-            st.success(f"✅ Ditemukan {len(results)} hasil di database:")
-            for row in results:
-                st.write(f"- ID: {row[0]}, Nama: {row[1]}, Jumlah: Rp {row[2]:,.0f}")
+    if st.button("🔍 Cocokkan ke Database"):
+        if manual_name and manual_amount:
+            results = match_to_database(manual_name, manual_amount)
+
+            st.subheader("🔗 Pencocokan Database")
+            if results:
+                st.success(f"✅ Ditemukan {len(results)} hasil:")
+                for row in results:
+                    st.write(f"- ID: {row[0]}, Nama: {row[1]}, Jumlah: Rp {row[2]:,.0f}")
+            else:
+                st.warning("⚠️ Tidak ditemukan data yang cocok di database.")
         else:
-            st.warning("⚠️ Tidak ditemukan data yang cocok di database.")
+            st.error("❌ Nama dan jumlah harus diisi untuk pencocokan.")
