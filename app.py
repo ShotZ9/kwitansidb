@@ -1,120 +1,109 @@
 import streamlit as st
-import pytesseract
-import cv2
 import sqlite3
-import numpy as np
+import google.generativeai as genai
 from PIL import Image
-import re
+import io
+from dotenv import load_dotenv
 import os
 
-# === Fungsi bantu ===
-def load_image(image_file):
-    img = Image.open(image_file)
-    return img
+# ==== Konfigurasi API ====
+load_dotenv()
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+model = genai.GenerativeModel("gemini-2.0-flash")
 
-def extract_text(image: Image.Image):
-    img = np.array(image)
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+# ==== Fungsi Gemini untuk ekstraksi kwitansi ====
+def extract_receipt_info(pil_image):
+    prompt = """
+    Berikut adalah gambar kwitansi. Tolong ekstrak informasi berikut (jika ada):
+    1. Nama toko atau penerima
+    2. Logo (jika dapat dikenali, sebutkan nama brand/logo)
+    3. Jumlah total uang dalam format Rupiah (contoh: Rp 120.000)
 
-    st.image(thresh, caption="🔍 Gambar Threshold (OCR Input)", use_container_width=True, channels="GRAY")
+    Jawaban dalam format JSON seperti ini:
+    {
+      "nama": "...",
+      "logo": "...",
+      "jumlah": "..."
+    }
+    """
 
-    return pytesseract.image_to_string(thresh)
+    try:
+        response = model.generate_content(
+            [prompt, pil_image],
+            generation_config={"temperature": 0.2}
+        )
+        return response.text
+    except Exception as e:
+        return f"ERROR: {e}"
 
-def extract_amount_from_image(image: Image.Image):
-    img = np.array(image)
-    h, w = img.shape[:2]
-    cropped = img[int(h*0.65):h, int(w*0.5):w]
+# ==== Setup database SQLite ====
+def setup_db():
+    conn = sqlite3.connect("receipts.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS receipts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            logo TEXT,
+            name TEXT,
+            amount TEXT
+        )
+    """)
+    # Tambah data dummy
+    cursor.execute("INSERT OR IGNORE INTO receipts (id, logo, name, amount) VALUES (1, 'tokopedia', 'Tokopedia', 'Rp 123.000')")
+    conn.commit()
+    return conn
 
-    gray = cv2.cvtColor(cropped, cv2.COLOR_RGB2GRAY)
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+def check_match(conn, logo, name, amount):
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM receipts WHERE logo=? AND name=? AND amount=?
+    """, (logo, name, amount))
+    return cursor.fetchone()
 
-    st.image(thresh, caption="🧾 Area Jumlah Uang (Cropped)", use_container_width=True, channels="GRAY")
+# ==== UI Streamlit ====
+st.set_page_config(page_title="Ekstraksi Kwitansi LLM", layout="centered")
+st.title("📄 Ekstraksi Kwitansi")
 
-    text = pytesseract.image_to_string(thresh)
-    match = re.search(r'[\d\.,]+', text)
-    if match:
+uploaded = st.file_uploader("Unggah gambar kwitansi (jpeg/png)", type=["jpg", "jpeg", "png"])
+
+if uploaded:
+    image = Image.open(uploaded).convert("RGB")
+    st.image(image, caption="Kwitansi yang Diunggah", use_container_width=True)
+
+    with st.spinner("🔍 Mengekstrak..."):
+        result_text = extract_receipt_info(image)
+
+    st.subheader("📤 Hasil Ekstraksi:")
+    # st.code(result_text, language="json")
+
+    if not result_text.startswith("ERROR"):
+        import json
+        import re
+        json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
         try:
-            raw = match.group(0).replace(".", "").replace(",", ".")
-            return float(raw)
-        except:
-            return None
-    return None
+            parsed = json.loads(json_match.group())
+            logo = parsed.get("logo", "Tidak ditemukan")
+            name = parsed.get("nama", "Tidak ditemukan")
+            amount = parsed.get("jumlah", "Tidak ditemukan")
 
-def extract_name(text: str):
-    lines = text.strip().split("\n")
-    for line in lines:
-        if len(line.strip()) > 5 and not re.search(r'\d', line):
-            return line.strip()
-    return None
+            st.write(f"**Logo**: {logo}")
+            st.write(f"**Nama**: {name}")
+            st.write(f"**Jumlah Uang**: {amount}")
 
-def match_to_database(name: str, amount: float, db_path="receipts.db"):
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM receipts WHERE name LIKE ? AND ABS(amount - ?) < 1", (f"%{name}%", amount))
-    result = cur.fetchall()
-    conn.close()
-    return result
+            conn = setup_db()
+            match = check_match(conn, logo, name, amount)
 
-def detect_logo_name(image: Image.Image, template_dir="assets/logo", threshold=0.8):
-    img_rgb = np.array(image.convert("RGB"))
-    img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
-
-    for filename in os.listdir(template_dir):
-        if not filename.lower().endswith((".png", ".jpg", ".jpeg")):
-            continue
-
-        template_path = os.path.join(template_dir, filename)
-        template = cv2.imread(template_path, 0)
-        if template is None:
-            continue
-
-        res = cv2.matchTemplate(img_gray, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, _ = cv2.minMaxLoc(res)
-
-        if max_val >= threshold:
-            return os.path.splitext(filename)[0]
-    return None
-
-# === Streamlit UI ===
-st.set_page_config(page_title="Ekstraksi Kwitansi", layout="centered")
-st.title("📤 Upload Kwitansi & Ekstrak Informasi")
-
-uploaded_file = st.file_uploader("Unggah gambar kwitansi (.jpg, .png)", type=["jpg", "png", "jpeg"])
-
-if uploaded_file:
-    img = load_image(uploaded_file)
-    st.image(img, caption="🖼️ Gambar Kwitansi", use_container_width=True)
-
-    with st.spinner("🔍 Mengekstrak informasi..."):
-        text_result = extract_text(img)
-        extracted_name = extract_name(text_result)
-        extracted_amount = extract_amount_from_image(img)
-        detected_logo = detect_logo_name(img)
-
-    st.subheader("📑 Hasil Ekstraksi")
-    st.text_area("📄 Hasil OCR (seluruh gambar):", value=text_result, height=150)
-
-    st.write("**🏷️ Nama yang Dideteksi:**", extracted_name or "❌ Tidak ditemukan")
-    st.write("**💰 Jumlah Uang:**", f"Rp {extracted_amount:,.0f}" if extracted_amount else "❌ Tidak ditemukan")
-    if detected_logo:
-        st.write("**🏢 Logo Terdeteksi:**", detected_logo)
-
-    # Manual override
-    st.markdown("### ✏️ Koreksi Manual (Opsional)")
-    manual_name = st.text_input("Nama pengirim (jika OCR salah):", value=extracted_name or "")
-    manual_amount = st.number_input("Jumlah uang (jika OCR salah):", value=extracted_amount or 0.0, step=1000.0)
-
-    if st.button("🔍 Cocokkan ke Database"):
-        if manual_name and manual_amount:
-            results = match_to_database(manual_name, manual_amount)
-
-            st.subheader("🔗 Pencocokan Database")
-            if results:
-                st.success(f"✅ Ditemukan {len(results)} hasil:")
-                for row in results:
-                    st.write(f"- ID: {row[0]}, Nama: {row[1]}, Jumlah: Rp {row[2]:,.0f}")
+            if match:
+                st.success("✅ Kecocokan ditemukan di database!")
             else:
-                st.warning("⚠️ Tidak ditemukan data yang cocok di database.")
-        else:
-            st.error("❌ Nama dan jumlah harus diisi untuk pencocokan.")
+                st.warning("❌ Tidak ada kecocokan di database.")
+
+            if st.button("💾 Tambah ke Database"):
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO receipts (logo, name, amount) VALUES (?, ?, ?)", (logo, name, amount))
+                conn.commit()
+                st.success("📥 Data berhasil ditambahkan ke database.")
+        except json.JSONDecodeError:
+            st.error("❌ Format JSON tidak valid atau tidak bisa dibaca.")
+    else:
+        st.error(result_text)
