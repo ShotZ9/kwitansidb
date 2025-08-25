@@ -74,7 +74,7 @@ if uploaded:
         result_text = extract_receipt_info(image)
 
     st.subheader("📤 Hasil Ekstraksi:")
-    # st.code(result_text, language="json")
+    st.code(result_text, language="json")
 
     if not result_text.startswith("ERROR"):
         import json
