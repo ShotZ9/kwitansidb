@@ -21,8 +21,8 @@ def extract_receipt_info(pil_image):
 
     Jawaban dalam format JSON seperti ini:
     {
-      "nama": "...",
       "logo": "...",
+      "nama": "...",
       "jumlah": "..."
     }
     """
