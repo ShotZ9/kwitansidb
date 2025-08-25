@@ -48,8 +48,6 @@ def setup_db():
             amount TEXT
         )
     """)
-    # Tambah data dummy
-    cursor.execute("INSERT OR IGNORE INTO receipts (id, logo, name, amount) VALUES (1, 'tokopedia', 'Tokopedia', 'Rp 123.000')")
     conn.commit()
     return conn
 
@@ -64,7 +62,7 @@ def check_match(conn, logo, name, amount):
 st.set_page_config(page_title="Ekstraksi Kwitansi LLM", layout="centered")
 st.title("📄 Ekstraksi Kwitansi")
 
-uploaded = st.file_uploader("Unggah gambar kwitansi (jpeg/png)", type=["jpg", "jpeg", "png"])
+uploaded = st.file_uploader("Unggah gambar kwitansi", type=["jpg", "jpeg", "png", "pdf"])
 
 if uploaded:
     image = Image.open(uploaded).convert("RGB")
