@@ -2,3 +2,5 @@ Pillow==11.3.0
 protobuf==6.32.0
 python-dotenv==1.1.1
 streamlit==1.47.1
+google-generativeai
+sqlite3-bro
